@@ -137,7 +137,7 @@ CONFIG_HOST=$CONFIG_BUILD
 curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/nspr/releases/v4.9.5/src/nspr-4.9.5.tar.gz | tar xvz
 curl -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | tar xvz
 [ ! $IS_ONLINE ] && curl -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | tar xvz
-curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_14_3_RTM/src/nss-3.14.3.tar.gz | tar xvz
+curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_15_2_RTM/src/nss-3.15.2.tar.gz | tar xvz
 curl -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.13.tar.gz | tar xvz
 curl -k -s -S http://download.oracle.com/berkeley-db/db-4.5.20.tar.gz | tar xvz
 curl -k -s -S http://rpm.org/releases/rpm-4.8.x/rpm-4.8.0.tar.bz2 | tar xvj
@@ -161,34 +161,57 @@ cd $HERE/nspr-4.9.5/mozilla/nsprpub
             --prefix $PREFIX $NSPR_CONFIGURE_OPTS
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/nss-3.14.3
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/nss-3.14.3-add-ZLIB-LIBS-DIR-and-ZLIB-INCLUDE-DIR.patch?view=co" | patch -p1
-export USE_64=$NSS_USE_64
+cd $HERE/nss-3.15.2
+#curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/nss-3.14.3-add-ZLIB-LIBS-DIR-and-ZLIB-INCLUDE-DIR.patch?view=co" | patch -p1
+patch -p1 < /build/davidlt/a15/CMSDIST/nss-3.15.2-add-ZLIB-LIBS-DIR-and-ZLIB-INCLUDE-DIR.patch
+patch -p1 < /build/davidlt/a15/CMSDIST/nss-3.15.2-utilwrap-include-templates.patch
+#export USE_64=$NSS_USE_64
+export NSDISTMODE="copy"
+export NSS_BUILD_WITHOUT_SOFTOKEN=1
 export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
 export NSPR_LIB_DIR=$PREFIX/lib
+export NSS_NO_PKCS11_BYPASS=1
+export FREEBL_NO_DEPEND=1
+#export FREEBL_LOWHASH=1
+#xport NSSUTIL_INCLUDE_DIR=/usr/include/nss3
+#xport NSSUTIL_LIB_DIR=/usr/lib
+#export FREEBL_INCLUDE_DIR=/usr/include/nss3
+export FREEBL_LIB_DIR=/usr/lib
+#export USE_SYSTEM_FREEBL=1
+export NSS_USE_SYSTEM_FREEBL=1
+export SOFTOKEN_INCLUDE_DIR=/usr/include/nss3
+export SOFTOKEN_LIB_DIR=/usr/lib
+#export USE_SYSTEM_SOFTOKEN=1
+export BUILD_OPT=1
 export USE_SYSTEM_ZLIB=1
 if [ ! $IS_ONLINE ]; then
   export ZLIB_INCLUDE_DIR="$PREFIX/include"
   export ZLIB_LIBS_DIR="-L$PREFIX/lib"
 fi
-case $ARCH in
-  slc[345]*|osx*) ;;
-  *)
-export FREEBL_NO_DEPEND=1
-  ;;
-esac
- 
-make -C ./mozilla/security/coreconf clean
-make -C ./mozilla/security/dbm clean
-make -C ./mozilla/security/nss clean
-make -C ./mozilla/security/coreconf
-make -C ./mozilla/security/dbm
-make -C ./mozilla/security/nss
+
+# https://bugzilla.mozilla.org/show_bug.cgi?id=820207
+cp ./nss/lib/softoken/lowkeyi.h ./nss/cmd/rsaperf
+cp ./nss/lib/softoken/lowkeyti.h ./nss/cmd/rsaperf
+
+# We are not building freebl/softoken/util
+rm -rf ./nss/lib/freebl
+rm -rf ./nss/lib/softoken
+#m -rf ./nss/lib/util
+
+#exit 1
+
+make -C ./nss/coreconf clean
+make -C ./nss/lib/dbm clean
+make -C ./nss clean
+make -C ./nss/coreconf
+make -C ./nss/lib/dbm
+make -C ./nss
+
 install -d $PREFIX/include/nss3
 install -d $PREFIX/lib
-find mozilla/dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.dylib' -exec install -m 755 {} $PREFIX/lib \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.so' -exec install -m 755 {} $PREFIX/lib \;
+find ./dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
+find . -path '*/dist/*.OBJ/lib/*.dylib' -exec install -m 755 {} $PREFIX/lib \;
+find . -path '*/dist/*.OBJ/lib/*.so' -exec install -m 755 {} $PREFIX/lib \;
 
 cd $HERE/popt-1.16
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-shared --enable-static \
