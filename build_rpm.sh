@@ -67,13 +67,6 @@ done
 
 set -e
 
-IS_ONLINE=
-case ${ARCH} in 
-  *onl_*_*)
-    IS_ONLINE=1
-  ;;
-esac
-
 [ "X${ARCH}" = X ] && echo "Please specify an architecture via --arch flag" && exit 1 
 case ${ARCH} in
   *_amd64_*|*_mic_*|*_aarch64_*)
@@ -136,7 +129,7 @@ CONFIG_HOST=$CONFIG_BUILD
 # Fetch the sources.
 curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/nspr/releases/v4.9.5/src/nspr-4.9.5.tar.gz | tar xvz
 curl -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | tar xvz
-[ ! $IS_ONLINE ] && curl -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | tar xvz
+curl -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | tar xvz
 curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_14_3_RTM/src/nss-3.14.3.tar.gz | tar xvz
 curl -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.13.tar.gz | tar xvz
 curl -k -s -S http://download.oracle.com/berkeley-db/db-4.5.20.tar.gz | tar xvz
@@ -144,12 +137,10 @@ curl -k -s -S http://rpm.org/releases/rpm-4.8.x/rpm-4.8.0.tar.bz2 | tar xvj
 curl -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.bz2 | tar xvj
 
 # Build required externals.
-if [ ! $IS_ONLINE ]; then
 cd $HERE/zlib-1.2.8
 CFLAGS="-fPIC -O3 -DUSE_MMAP -DUNALIGNED_OK -D_LARGEFILE64_SOURCE=1" \
   ./configure --prefix $PREFIX --static
 make -j $BUILDPROCESSES && make install
-fi
 
 cd $HERE/file-5.13
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath --enable-static \
@@ -168,10 +159,8 @@ export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
 export NSPR_LIB_DIR=$PREFIX/lib
 export FREEBL_LOWHASH=1
 export USE_SYSTEM_ZLIB=1
-if [ ! $IS_ONLINE ]; then
-  export ZLIB_INCLUDE_DIR="$PREFIX/include"
-  export ZLIB_LIBS_DIR="-L$PREFIX/lib"
-fi
+export ZLIB_INCLUDE_DIR="$PREFIX/include"
+export ZLIB_LIBS_DIR="-L$PREFIX/lib"
  
 make -C ./mozilla/security/coreconf clean
 make -C ./mozilla/security/dbm clean
