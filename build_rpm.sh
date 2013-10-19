@@ -103,7 +103,7 @@ case $CONFIG_BUILD in
     echo "System reports your triplet is $CONFIG_BUILD"
   ;;
   guess)
-    curl -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+    curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
     if [ $? -ne 0 ]; then
       echo "Could not download config.guess from git.savannah.gnu.org."
       exit 1
@@ -113,7 +113,7 @@ case $CONFIG_BUILD in
     echo "Guessed triplet is $CONFIG_BUILD"
   ;;
   *)
-    curl -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+    curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
     if [ $? -ne 0 ]; then
       echo "Could not download config.sub from git.savannah.gnu.org."
       exit 1
@@ -125,85 +125,94 @@ case $CONFIG_BUILD in
 esac
 
 CONFIG_HOST=$CONFIG_BUILD
+RPM_SOURCES=$HERE/rpm-build
 
-# Fetch the sources.
-curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/nspr/releases/v4.9.5/src/nspr-4.9.5.tar.gz | tar xvz
-curl -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | tar xvz
-curl -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | tar xvz
-curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_14_3_RTM/src/nss-3.14.3.tar.gz | tar xvz
-curl -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.13.tar.gz | tar xvz
-curl -k -s -S http://download.oracle.com/berkeley-db/db-4.5.20.tar.gz | tar xvz
-curl -k -s -S http://rpm.org/releases/rpm-4.8.x/rpm-4.8.0.tar.bz2 | tar xvj
-curl -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.bz2 | tar xvj
+# Clean up previous build
+rm -rf $PREFIX
+rm -rf $RPM_SOURCES
+mkdir -p $PREFIX
+mkdir -p $RPM_SOURCES
 
-# Build required externals.
-cd $HERE/zlib-1.2.8
+
+# Fetch the sources
+TAR="tar -C $RPM_SOURCES"
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/nspr-4.10.1.tar.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/popt-1.16.tar.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/zlib-1.2.8.tar.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/nss-3.15.2.tar.gz | $TAR -xvz 
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/file-5.15.tar.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/db-6.0.20.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1.tar.bz2 | $TAR -xvj
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11.tar.gz | $TAR -xvz
+
+# Build required externals
+cd $RPM_SOURCES/zlib-1.2.8
 CFLAGS="-fPIC -O3 -DUSE_MMAP -DUNALIGNED_OK -D_LARGEFILE64_SOURCE=1" \
   ./configure --prefix $PREFIX --static
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/file-5.13
+cd $RPM_SOURCES/file-5.15
+# Fix config.guess to find aarch64: https://bugzilla.redhat.com/show_bug.cgi?id=925339
+if [ $(uname) = Linux ]; then
+  autoreconf -fiv
+fi
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath --enable-static \
-            --disable-shared --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
+            --disable-shared --prefix $PREFIX CFLAGS=-fPIC LDFLAGS="-L$PREFIX/lib $LDFLAGS" \
+            CPPFLAGS="-I$PREFIX/include"
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/nspr-4.9.5/mozilla/nsprpub
+cd $RPM_SOURCES/nspr-4.10.1/nspr
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
             --prefix $PREFIX $NSPR_CONFIGURE_OPTS
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/nss-3.14.3
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/nss-3.14.3-add-ZLIB-LIBS-DIR-and-ZLIB-INCLUDE-DIR.patch?view=co" | patch -p1
+cd $RPM_SOURCES/nss-3.15.2
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/nss-3.15.2-0001-Add-support-for-non-standard-location-zlib.patch | patch -p1
 export USE_64=$NSS_USE_64
 export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
 export NSPR_LIB_DIR=$PREFIX/lib
 export FREEBL_LOWHASH=1
-export USE_SYSTEM_ZLIB=1
+export FREEBL_NO_DEPEND=1
+export BUILD_OPT=1
+export NSS_NO_PKCS11_BYPASS=1
 export ZLIB_INCLUDE_DIR="$PREFIX/include"
-export ZLIB_LIBS_DIR="-L$PREFIX/lib"
- 
-make -C ./mozilla/security/coreconf clean
-make -C ./mozilla/security/dbm clean
-make -C ./mozilla/security/nss clean
-make -C ./mozilla/security/coreconf
-make -C ./mozilla/security/dbm
-make -C ./mozilla/security/nss
+export ZLIB_LIB_DIR="$PREFIX/lib"
+
+make -C ./nss/coreconf clean
+make -C ./nss/lib/dbm clean
+make -C ./nss clean
+make -C ./nss/coreconf
+make -C ./nss/lib/dbm
+make -C ./nss 
+
 install -d $PREFIX/include/nss3
 install -d $PREFIX/lib
-find mozilla/dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.dylib' -exec install -m 755 {} $PREFIX/lib \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.so' -exec install -m 755 {} $PREFIX/lib \;
+find ./dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
+find ./dist/*.OBJ/lib -name '*.dylib' -o -name '*.so' -exec install -m 755 {} $PREFIX/lib \;
 
-cd $HERE/popt-1.16
+cd $RPM_SOURCES/popt-1.16
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-shared --enable-static \
             --disable-nls --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/db-4.5.20/build_unix
+cd $RPM_SOURCES/db-6.0.20/build_unix
 ../dist/configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --enable-static \
-                  --disable-shared --disable-java --disable-rpc --prefix=$PREFIX \
+                  --disable-shared --disable-java --prefix=$PREFIX \
                   --with-posixmutexes CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
 
 # Build the actual rpm distribution.
-cd $HERE/rpm-4.8.0
-rm -rf lib/rpmhash.*
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-case-insensitive-sources.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-add-missing-__fxstat64.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-case-insensitive-fixes.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-fix-glob_pattern_p.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-fix-arm.patch?view=co" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-remove-chroot-check.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-remove-strndup.patch?revision=1.1" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-allow-empty-buildroot.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-fix-missing-libgen.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-fix-find-provides.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-increase-line-buffer.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-increase-macro-buffer.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-fix-fontconfig-provides.patch?revision=HEAD" | patch -p1
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/rpm-4.8.0-disable-internal-dependency-generator-libtool.patch?revision=HEAD" | patch -p1
+cd $RPM_SOURCES/rpm-4.11.1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0001-Workaround-empty-buildroot-message.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0002-Increase-line-buffer-20x.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0003-Increase-macro-buffer-size-10x.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0004-Improve-file-deps-speed.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0005-Disable-internal-dependency-generator-libtool.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0006-Remove-chroot-checks.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0007-Fix-Darwin-requires-script-Argument-list-too-long.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/rpm-4.11.1-0008-Fix-Darwin-provides-script.patch | patch -p1
 
-case `uname` in
+case $(uname) in
   Darwin)
     export DYLD_FALLBACK_LIBRARY_PATH=$PREFIX/lib
     USER_CFLAGS=-fnested-functions
@@ -238,26 +247,13 @@ ln -sf $PREFIX/bin/rpm $PREFIX/bin/rpmverify
 ln -sf $PREFIX/bin/rpm $PREFIX/bin/rpmquery
 
 # Install GNU cpio
-cd $HERE/cpio-2.11
-curl "http://cmssw.cvs.cern.ch/cgi-bin/cmssw.cgi/COMP/CMSDIST/cpio-2.11-stdio.in-gets.patch?view=co" | patch -p1
+cd $RPM_SOURCES/cpio-2.11
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0001-Protect-gets-with-HAVE_RAW_DECL_GETS-in-stdio.in.h.patch | patch -p1
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0002-Fix-invalid-redefinition-of-stat.patch | patch -p1
 
-# For Mac OS X patch cpio, otherwise compilation will fail
-# NOTE: This patch should not be needed for newer GNU cpio
-if [ `uname` = Darwin ]; then
-  echo ABC2
-  cat > cpio_osx_fix_stat.patch <<PATCH_FILE
---- src/filetypes.h.orig  2012-01-05 15:09:42.000000000 +0100
-+++ src/filetypes.h 2012-01-05 15:10:20.000000000 +0100
-@@ -82,4 +82,6 @@
- #define lstat stat
- #endif
- int lstat ();
-+#ifndef stat
- int stat ();
-+#endif
-PATCH_FILE
-
-  patch -p0 < cpio_osx_fix_stat.patch
+# To support AArch64 (new config.{guess,sub})
+if [ $(uname) = Linux ]; then
+  autoreconf -fiv
 fi
 
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
