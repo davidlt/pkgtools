@@ -251,10 +251,9 @@ cd $RPM_SOURCES/cpio-2.11
 curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0001-Protect-gets-with-HAVE_RAW_DECL_GETS-in-stdio.in.h.patch | patch -p1
 curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0002-Fix-invalid-redefinition-of-stat.patch | patch -p1
 
-# To support AArch64 (new config.{guess,sub})
-if [ $(uname) = Linux ]; then
-  autoreconf -fiv
-fi
+# Update for AAarch64
+rm -f ./config.sub && curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
             --disable-nls --exec-prefix=$PREFIX --prefix=$PREFIX \
