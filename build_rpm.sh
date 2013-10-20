@@ -197,6 +197,9 @@ find ./dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 
 find ./dist/*.OBJ/lib -name '*.dylib' -o -name '*.so' -exec install -m 755 {} $PREFIX/lib \;
 
 cd $RPM_SOURCES/popt-1.16
+# Update for AAarch64
+rm -f ./config.sub && curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-shared --enable-static \
             --disable-nls --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
