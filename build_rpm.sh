@@ -166,8 +166,8 @@ cd $RPM_SOURCES/nspr-4.10.1/nspr
             --prefix $PREFIX $NSPR_CONFIGURE_OPTS
 
 # Update for AAarch64
-rm -f ./config.sub && curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
-rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+rm -f ./nspr/build/autoconf/config.sub && curl -L -k -s -o ./nspr/build/autoconf/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./nspr/build/autoconf/config.guess && curl -L -k -s -o ./nspr/build/autoconf/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 
 make -j $BUILDPROCESSES && make install
 
