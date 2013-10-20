@@ -162,12 +162,13 @@ fi
 make -j $BUILDPROCESSES && make install
 
 cd $RPM_SOURCES/nspr-4.10.1/nspr
-./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
-            --prefix $PREFIX $NSPR_CONFIGURE_OPTS
 
 # Update for AAarch64
 rm -f ./nspr/build/autoconf/config.sub && curl -L -k -s -o ./nspr/build/autoconf/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
 rm -f ./nspr/build/autoconf/config.guess && curl -L -k -s -o ./nspr/build/autoconf/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+
+./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
+            --prefix $PREFIX $NSPR_CONFIGURE_OPTS
 
 make -j $BUILDPROCESSES && make install
 
