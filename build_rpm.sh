@@ -261,8 +261,8 @@ curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0001-Prote
 curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/cpio-2.11-0002-Fix-invalid-redefinition-of-stat.patch | patch -p1
 
 # Update for AAarch64
-rm -f ./config.sub && curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
-rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+rm -f ./build-aux/config.sub && curl -L -k -s -o ./build-aux/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./build-aux/config.guess && curl -L -k -s -o ./build-aux/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
             --disable-nls --exec-prefix=$PREFIX --prefix=$PREFIX \
