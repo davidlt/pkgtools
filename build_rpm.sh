@@ -153,10 +153,6 @@ CFLAGS="-fPIC -O3 -DUSE_MMAP -DUNALIGNED_OK -D_LARGEFILE64_SOURCE=1" \
 make -j $BUILDPROCESSES && make install
 
 cd $RPM_SOURCES/file-5.18
-# Fix config.guess to find aarch64: https://bugzilla.redhat.com/show_bug.cgi?id=925339
-if [ $(uname) = Linux ]; then
-  autoreconf -fiv
-fi
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath --enable-static \
             --disable-shared --prefix $PREFIX CFLAGS=-fPIC LDFLAGS="-L$PREFIX/lib $LDFLAGS" \
             CPPFLAGS="-I$PREFIX/include"
