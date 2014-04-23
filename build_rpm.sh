@@ -214,9 +214,10 @@ curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0002-Increase-line-buffer-20x.patch | p
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0003-Increase-macro-buffer-size-10x.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0004-Improve-file-deps-speed.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0005-Disable-internal-dependency-generator-libtool.patch | patch -p1
-curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0006-Remove-chroot-checks.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0006-Remove-chroot-checks-and-chdir-calls.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0007-Fix-Darwin-requires-script-Argument-list-too-long.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0008-Fix-Darwin-provides-script.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0009-Do-not-use-PKG_CHECK_MODULES-to-check-lua-availabili.patch | patch -p1
 
 case $(uname) in
   Darwin)
