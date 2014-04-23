@@ -142,7 +142,7 @@ curl -L -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | $TAR -xvz
 curl -L -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | $TAR -xvz
 curl -L -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_16_RTM/src/nss-3.16.tar.gz | $TAR -xvz
 curl -L -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.18.tar.gz | $TAR -xvz
-curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/db-6.0.30.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/db-6.0.30.tar.gz | $TAR -xvz
 curl -L -k -s -S http://rpm.org/releases/rpm-4.11.x/rpm-4.11.2.tar.bz2 | $TAR -xvj
 curl -L -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.gz | $TAR -xvz
 
@@ -205,7 +205,7 @@ rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu
             --disable-nls --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
 
-cd $RPM_SOURCES/db-6.0.20/build_unix
+cd $RPM_SOURCES/db-6.0.30/build_unix
 ../dist/configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --enable-static \
                   --disable-shared --disable-java --prefix=$PREFIX \
                   --with-posixmutexes CFLAGS=-fPIC LDFLAGS=$LDFLAGS
