@@ -67,16 +67,9 @@ done
 
 set -e
 
-IS_ONLINE=
-case ${ARCH} in 
-  *onl_*_*)
-    IS_ONLINE=1
-  ;;
-esac
-
 [ "X${ARCH}" = X ] && echo "Please specify an architecture via --arch flag" && exit 1 
 case ${ARCH} in
-  *_amd64_*|*_mic_*)
+  *_amd64_*|*_mic_*|*_aarch64_*)
     NSPR_CONFIGURE_OPTS="--enable-64bit"
     NSS_USE_64=1
   ;;
@@ -110,7 +103,7 @@ case $CONFIG_BUILD in
     echo "System reports your triplet is $CONFIG_BUILD"
   ;;
   guess)
-    curl -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+    curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
     if [ $? -ne 0 ]; then
       echo "Could not download config.guess from git.savannah.gnu.org."
       exit 1
@@ -120,7 +113,7 @@ case $CONFIG_BUILD in
     echo "Guessed triplet is $CONFIG_BUILD"
   ;;
   *)
-    curl -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+    curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
     if [ $? -ne 0 ]; then
       echo "Could not download config.sub from git.savannah.gnu.org."
       exit 1
@@ -131,90 +124,105 @@ case $CONFIG_BUILD in
   ;;
 esac
 
+PATCH_URL="https://raw.githubusercontent.com/davidlt/cmsdist/gcc490-port"
+
 CONFIG_HOST=$CONFIG_BUILD
+RPM_SOURCES=$HERE/rpm-build
 
-# Fetch the sources.
-curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/nspr/releases/v4.9.5/src/nspr-4.9.5.tar.gz | tar xvz
-curl -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | tar xvz
-[ ! $IS_ONLINE ] && curl -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | tar xvz
-curl -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_14_3_RTM/src/nss-3.14.3.tar.gz | tar xvz
-curl -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.13.tar.gz | tar xvz
-curl -k -s -S http://download.oracle.com/berkeley-db/db-4.5.20.tar.gz | tar xvz
-curl -k -s -S http://rpm.org/releases/rpm-4.8.x/rpm-4.8.0.tar.bz2 | tar xvj
-curl -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.bz2 | tar xvj
+# Clean up previous build
+rm -rf $PREFIX
+rm -rf $RPM_SOURCES
+mkdir -p $PREFIX
+mkdir -p $RPM_SOURCES
 
-# Build required externals.
-if [ ! $IS_ONLINE ]; then
-cd $HERE/zlib-1.2.8
+# Fetch the sources
+TAR="tar -C $RPM_SOURCES"
+curl -L -k -s -S https://ftp.mozilla.org/pub/mozilla.org/nspr/releases/v4.10.4/src/nspr-4.10.4.tar.gz | $TAR -xvz
+curl -L -k -s -S http://rpm5.org/files/popt/popt-1.16.tar.gz | $TAR -xvz
+curl -L -k -s -S http://zlib.net/zlib-1.2.8.tar.gz | $TAR -xvz
+curl -L -k -s -S https://ftp.mozilla.org/pub/mozilla.org/security/nss/releases/NSS_3_16_RTM/src/nss-3.16.tar.gz | $TAR -xvz
+curl -L -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.18.tar.gz | $TAR -xvz
+curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/db-6.0.30.gz | $TAR -xvz
+curl -L -k -s -S http://rpm.org/releases/rpm-4.11.x/rpm-4.11.2.tar.bz2 | $TAR -xvj
+curl -L -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.gz | $TAR -xvz
+
+# Build required externals
+cd $RPM_SOURCES/zlib-1.2.8
 CFLAGS="-fPIC -O3 -DUSE_MMAP -DUNALIGNED_OK -D_LARGEFILE64_SOURCE=1" \
   ./configure --prefix $PREFIX --static
 make -j $BUILDPROCESSES && make install
-fi
 
-cd $HERE/file-5.13
+cd $RPM_SOURCES/file-5.18
+# Fix config.guess to find aarch64: https://bugzilla.redhat.com/show_bug.cgi?id=925339
+if [ $(uname) = Linux ]; then
+  autoreconf -fiv
+fi
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath --enable-static \
-            --disable-shared --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
+            --disable-shared --prefix $PREFIX CFLAGS=-fPIC LDFLAGS="-L$PREFIX/lib $LDFLAGS" \
+            CPPFLAGS="-I$PREFIX/include"
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/nspr-4.9.5/mozilla/nsprpub
+cd $RPM_SOURCES/nspr-4.10.4/nspr
+
+# Update for AAarch64
+rm -f ./build/autoconf/config.sub && curl -L -k -s -o ./build/autoconf/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./build/autoconf/config.guess && curl -L -k -s -o ./build/autoconf/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
             --prefix $PREFIX $NSPR_CONFIGURE_OPTS
+
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/nss-3.14.3
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/nss-3.14.3-add-ZLIB-LIBS-DIR-and-ZLIB-INCLUDE-DIR.patch" | patch -p1
+cd $RPM_SOURCES/nss-3.16
+curl -L -k -s -S ${PATCH_URL}/nss-3.16-0001-Add-support-for-non-standard-location-zlib.patch | patch -p1
 export USE_64=$NSS_USE_64
 export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
 export NSPR_LIB_DIR=$PREFIX/lib
 export FREEBL_LOWHASH=1
-export USE_SYSTEM_ZLIB=1
-if [ ! $IS_ONLINE ]; then
-  export ZLIB_INCLUDE_DIR="$PREFIX/include"
-  export ZLIB_LIBS_DIR="-L$PREFIX/lib"
-fi
- 
-make -C ./mozilla/security/coreconf clean
-make -C ./mozilla/security/dbm clean
-make -C ./mozilla/security/nss clean
-make -C ./mozilla/security/coreconf
-make -C ./mozilla/security/dbm
-make -C ./mozilla/security/nss
+export FREEBL_NO_DEPEND=1
+export BUILD_OPT=1
+export NSS_NO_PKCS11_BYPASS=1
+export ZLIB_INCLUDE_DIR="$PREFIX/include"
+export ZLIB_LIB_DIR="$PREFIX/lib"
+
+make -C ./nss/coreconf clean
+make -C ./nss/lib/dbm clean
+make -C ./nss clean
+make -C ./nss/coreconf
+make -C ./nss/lib/dbm
+make -C ./nss
+
 install -d $PREFIX/include/nss3
 install -d $PREFIX/lib
-find mozilla/dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.dylib' -exec install -m 755 {} $PREFIX/lib \;
-find . -path '*/mozilla/dist/*.OBJ/lib/*.so' -exec install -m 755 {} $PREFIX/lib \;
+find ./dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
+find ./dist/*.OBJ/lib -name '*.dylib' -o -name '*.so' -exec install -m 755 {} $PREFIX/lib \;
 
-cd $HERE/popt-1.16
+cd $RPM_SOURCES/popt-1.16
+# Update for AAarch64
+rm -f ./config.sub && curl -L -k -s -o ./config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./config.guess && curl -L -k -s -o ./config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-shared --enable-static \
             --disable-nls --prefix $PREFIX CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
 
-cd $HERE/db-4.5.20/build_unix
+cd $RPM_SOURCES/db-6.0.20/build_unix
 ../dist/configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --enable-static \
-                  --disable-shared --disable-java --disable-rpc --prefix=$PREFIX \
+                  --disable-shared --disable-java --prefix=$PREFIX \
                   --with-posixmutexes CFLAGS=-fPIC LDFLAGS=$LDFLAGS
 make -j $BUILDPROCESSES && make install
 
 # Build the actual rpm distribution.
-cd $HERE/rpm-4.8.0
-rm -rf lib/rpmhash.*
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-case-insensitive-sources.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-add-missing-__fxstat64.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-case-insensitive-fixes.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-fix-glob_pattern_p.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-fix-arm.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-remove-chroot-check.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-remove-strndup.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-allow-empty-buildroot.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-fix-missing-libgen.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-fix-find-provides.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-increase-line-buffer.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-increase-macro-buffer.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-fix-fontconfig-provides.patch" | patch -p1
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/rpm-4.8.0-disable-internal-dependency-generator-libtool.patch" | patch -p1
+cd $RPM_SOURCES/rpm-4.11.2
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0001-Workaround-empty-buildroot-message.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0002-Increase-line-buffer-20x.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0003-Increase-macro-buffer-size-10x.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0004-Improve-file-deps-speed.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0005-Disable-internal-dependency-generator-libtool.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0006-Remove-chroot-checks.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0007-Fix-Darwin-requires-script-Argument-list-too-long.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0008-Fix-Darwin-provides-script.patch | patch -p1
 
-case `uname` in
+case $(uname) in
   Darwin)
     export DYLD_FALLBACK_LIBRARY_PATH=$PREFIX/lib
     USER_CFLAGS=-fnested-functions
@@ -249,27 +257,13 @@ ln -sf $PREFIX/bin/rpm $PREFIX/bin/rpmverify
 ln -sf $PREFIX/bin/rpm $PREFIX/bin/rpmquery
 
 # Install GNU cpio
-cd $HERE/cpio-2.11
-curl -s -S "https://raw.github.com/cms-sw/cmsdist/IB/CMSSW_7_1_X/stable/cpio-2.11-stdio.in-gets.patch" | patch -p1
+cd $RPM_SOURCES/cpio-2.11
+curl -L -k -s -S ${PATCH_URL}/cpio-2.11-0001-Protect-gets-with-HAVE_RAW_DECL_GETS-in-stdio.in.h.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/cpio-2.11-0002-Fix-invalid-redefinition-of-stat.patch | patch -p1
 
-# For Mac OS X patch cpio, otherwise compilation will fail
-# NOTE: This patch should not be needed for newer GNU cpio
-if [ `uname` = Darwin ]; then
-  echo ABC2
-  cat > cpio_osx_fix_stat.patch <<PATCH_FILE
---- src/filetypes.h.orig  2012-01-05 15:09:42.000000000 +0100
-+++ src/filetypes.h 2012-01-05 15:10:20.000000000 +0100
-@@ -82,4 +82,6 @@
- #define lstat stat
- #endif
- int lstat ();
-+#ifndef stat
- int stat ();
-+#endif
-PATCH_FILE
-
-  patch -p0 < cpio_osx_fix_stat.patch
-fi
+# Update for AAarch64
+rm -f ./build-aux/config.sub && curl -L -k -s -o ./build-aux/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+rm -f ./build-aux/config.guess && curl -L -k -s -o ./build-aux/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 
 ./configure --host="${CONFIG_HOST}" --build="${CONFIG_BUILD}" --disable-rpath \
             --disable-nls --exec-prefix=$PREFIX --prefix=$PREFIX \
