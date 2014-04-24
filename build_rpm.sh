@@ -128,12 +128,15 @@ PATCH_URL="https://raw.githubusercontent.com/davidlt/cmsdist/gcc490-port"
 
 CONFIG_HOST=$CONFIG_BUILD
 RPM_SOURCES=$HERE/rpm-build
+RPM_TOOLS=$HERE/rpm-tools
 
 # Clean up previous build
 rm -rf $PREFIX
 rm -rf $RPM_SOURCES
+rm -rf $RPM_TOOLS
 mkdir -p $PREFIX
 mkdir -p $RPM_SOURCES
+mkdir -p $RPM_TOOLS
 
 # Fetch the sources
 TAR="tar -C $RPM_SOURCES"
@@ -145,6 +148,39 @@ curl -L -k -s -S ftp://ftp.fu-berlin.de/unix/tools/file/file-5.18.tar.gz | $TAR 
 curl -L -k -s -S http://davidlt.web.cern.ch/davidlt/sources/db-6.0.30.tar.gz | $TAR -xvz
 curl -L -k -s -S http://rpm.org/releases/rpm-4.11.x/rpm-4.11.2.tar.bz2 | $TAR -xvj
 curl -L -k -s -S http://ftp.gnu.org/gnu/cpio/cpio-2.11.tar.gz | $TAR -xvz
+
+# Replace missing or old autoconf/automake
+curl -L -k -s -S http://ftp.gnu.org/gnu/m4/m4-1.4.17.tar.bz2 | $TAR -xvj
+curl -L -k -s -S http://mirror.switch.ch/ftp/mirror/gnu/autoconf/autoconf-2.69.tar.gz | $TAR -xvz
+curl -L -k -s -S http://mirror.switch.ch/ftp/mirror/gnu/automake/automake-1.14.tar.gz | $TAR -xvz
+curl -L -k -s -S http://ftpmirror.gnu.org/libtool/libtool-2.4.2.tar.gz | $TAR -xvz
+
+PATH=$RPM_TOOLS/bin:$PATH
+
+# Build M4
+cd $RPM_SOURCES/m4-1.4.17
+./configure --prefix=$RPM_TOOLS
+make -j $BUILDPROCESSES && make install
+
+# Build autoconf
+cd $RPM_SOURCES/autoconf-2.69
+./configure --prefix=$RPM_TOOLS
+make -j $BUILDPROCESSES && make install
+
+# Build automake
+cd $RPM_SOURCES/automake-1.14
+./configure --prefix=$RPM_TOOLS
+make -j $BUILDPROCESSES && make install
+
+# Build libtool
+cd $RPM_SOURCES/libtool-2.4.2
+# Update for AArch64 support
+rm -f ./libltdl/config/config.{sub,guess}
+curl -L -k -s -o ./libltdl/config/config.sub 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+curl -L -k -s -o ./libltdl/config/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
+chmod +x ./libltdl/config/config.{sub,guess}
+./configure --prefix $RPM_TOOLS
+make -j $BUILDPROCESSES && make install
 
 # Build required externals
 cd $RPM_SOURCES/zlib-1.2.8
@@ -218,6 +254,8 @@ curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0006-Remove-chroot-checks-and-chdir-cal
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0007-Fix-Darwin-requires-script-Argument-list-too-long.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0008-Fix-Darwin-provides-script.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0009-Do-not-use-PKG_CHECK_MODULES-to-check-lua-availabili.patch | patch -p1
+
+autoreconf -i -f
 
 case $(uname) in
   Darwin)
