@@ -154,6 +154,7 @@ curl -L -k -s -S http://ftp.gnu.org/gnu/m4/m4-1.4.17.tar.bz2 | $TAR -xvj
 curl -L -k -s -S http://mirror.switch.ch/ftp/mirror/gnu/autoconf/autoconf-2.69.tar.gz | $TAR -xvz
 curl -L -k -s -S http://mirror.switch.ch/ftp/mirror/gnu/automake/automake-1.14.tar.gz | $TAR -xvz
 curl -L -k -s -S http://ftpmirror.gnu.org/libtool/libtool-2.4.2.tar.gz | $TAR -xvz
+curl -L -k -s -S http://ftp.gnu.org/pub/gnu/gettext/gettext-0.18.3.2.tar.gz | $TAR -xvz
 
 PATH=$RPM_TOOLS/bin:$PATH
 
@@ -180,6 +181,11 @@ curl -L -k -s -o ./libltdl/config/config.sub 'http://git.savannah.gnu.org/gitweb
 curl -L -k -s -o ./libltdl/config/config.guess 'http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD'
 chmod +x ./libltdl/config/config.{sub,guess}
 ./configure --prefix $RPM_TOOLS
+make -j $BUILDPROCESSES && make install
+
+# Build gettext
+cd $RPM_SOURCES/gettext-0.18.3.2
+./configure --prefix=$RPM_TOOLS
 make -j $BUILDPROCESSES && make install
 
 # Build required externals
@@ -227,7 +233,7 @@ make -C ./nss
 install -d $PREFIX/include/nss3
 install -d $PREFIX/lib
 find ./dist/public/nss -name '*.h' -exec install -m 644 {} $PREFIX/include/nss3 \;
-find ./dist/*.OBJ/lib -name '*.dylib' -o -name '*.so' -exec install -m 755 {} $PREFIX/lib \;
+find ./dist/*.OBJ/lib \( -name '*.dylib' -o -name '*.so' \) -exec install -m 755 {} $PREFIX/lib \;
 
 cd $RPM_SOURCES/popt-1.16
 # Update for AAarch64
