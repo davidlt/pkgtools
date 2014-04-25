@@ -260,6 +260,8 @@ curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0006-Remove-chroot-checks-and-chdir-cal
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0007-Fix-Darwin-requires-script-Argument-list-too-long.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0008-Fix-Darwin-provides-script.patch | patch -p1
 curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0009-Do-not-use-PKG_CHECK_MODULES-to-check-lua-availabili.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0010-armhfp-logic.patch | patch -p1
+curl -L -k -s -S ${PATCH_URL}/rpm-4.11.2-0011-armhfp.patch | patch -p1
 
 autoreconf -i -f
 
