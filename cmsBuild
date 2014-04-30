@@ -2933,6 +2933,14 @@ def buildPackage(pkg, scheduler):
   
   # link the RPM from the unique name to the friendly name
   symlink(uniqueRpmFilename, finalRpmFilename)
+
+  # Native RPM subpackages:
+  for subpkg_name in pkg.subpkgs:
+    subpkg_rpmfilename = '%s/%s+%s-%s+%s-%s-%s.%s.rpm' % (pkg.cmsplatf, pkg.group, pkg.name, subpkg_name, pkg.version, '1', pkg.pkgRevision, pkg.cmsplatf)
+    subpkg_filename = join(abspath("RPMS"), subpkg_rpmfilename)
+    unique_subpkg_filename = join(abspath("RPMS/cache/%s" % pkg.checksum), subpkg_rpmfilename)
+    symlink(unique_subpkg_filename, subpkg_filename)
+
   # link subpackages, if any
   for subpackage in pkg.subpackages:
     finalSubFilename = join(abspath ("RPMS"), subpackage.rpmfilename)
