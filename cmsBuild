@@ -1977,7 +1977,7 @@ class Package (object):
                 self.sections[currentSection][currentSubSection] += self.sectionPostambles[currentSection]
                 if currentSection == "%build":
                     for subpkg_name in self.subpkgs.keys():
-                        self.sections[currentSection][currentSubSection] += "touch %%_builddir/files.%s" % subpkg_name
+                        self.sections[currentSection][currentSubSection] += "touch %%_builddir/files.%s\n" % subpkg_name
                 currentSection, currentSubSection = match.groups ()
                 self.sections[currentSection][currentSubSection] = self.sectionPreambles[currentSection]
             else:
